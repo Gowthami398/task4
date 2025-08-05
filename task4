@@ -1,0 +1,294 @@
+import tkinter as tk
+from tkinter import messagebox, ttk
+import requests
+import json
+from datetime import datetime
+import webbrowser
+
+class WeatherApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Weather Forecast - My Daily Work")
+        self.root.geometry("600x800")
+        self.root.configure(bg='#2c3e50')
+        self.root.resizable(False, False)
+        
+        # API configuration (using OpenWeatherMap API)
+        self.api_key = "YOUR_API_KEY_HERE"  # You need to get a free API key from openweathermap.org
+        self.base_url = "http://api.openweathermap.org/data/2.5/weather"
+        
+        self.create_widgets()
+        
+    def create_widgets(self):
+        # Title
+        title_label = tk.Label(self.root, text="My Daily Work Weather Forecast", 
+                             font=("Arial", 16, "bold"), bg='#2c3e50', fg='white')
+        title_label.pack(pady=20)
+        
+        # Main frame
+        main_frame = tk.Frame(self.root, bg='#34495e', relief='raised', bd=3)
+        main_frame.pack(pady=20, padx=20, fill='both', expand=True)
+        
+        # Search frame
+        search_frame = tk.Frame(main_frame, bg='#34495e')
+        search_frame.pack(pady=20, padx=20, fill='x')
+        
+        tk.Label(search_frame, text="Enter City Name or ZIP Code:", 
+                font=("Arial", 12, "bold"), bg='#34495e', fg='white').pack(anchor='w')
+        
+        # Input frame
+        input_frame = tk.Frame(search_frame, bg='#34495e')
+        input_frame.pack(fill='x', pady=10)
+        
+        self.city_entry = tk.Entry(input_frame, font=("Arial", 14), width=30)
+        self.city_entry.pack(side='left', padx=(0, 10))
+        self.city_entry.bind('<Return>', lambda e: self.get_weather())
+        
+        search_button = tk.Button(input_frame, text="�� Search Weather", 
+                                 command=self.get_weather,
+                                 bg='#3498db', fg='white', font=("Arial", 12, "bold"),
+                                 padx=20, pady=5)
+        search_button.pack(side='right')
+        
+        # Weather display frame
+        self.weather_frame = tk.Frame(main_frame, bg='#34495e')
+        self.weather_frame.pack(pady=20, padx=20, fill='both', expand=True)
+        
+        # Initialize with placeholder
+        self.show_placeholder()
+        
+        # API key info
+        api_frame = tk.Frame(self.root, bg='#34495e', relief='sunken', bd=2)
+        api_frame.pack(pady=10, padx=20, fill='x')
+        
+        tk.Label(api_frame, text="API Information:", font=("Arial", 10, "bold"), 
+                bg='#34495e', fg='white').pack(anchor='w', padx=5, pady=2)
+        
+        api_info = tk.Label(api_frame, 
+                           text="This app uses OpenWeatherMap API. Get your free API key at: openweathermap.org",
+                           font=("Arial", 9), bg='#34495e', fg='#bdc3c7', wraplength=550)
+        api_info.pack(anchor='w', padx=5, pady=5)
+        
+        # Get API key button
+        api_button = tk.Button(api_frame, text="Get Free API Key", 
+                              command=self.open_api_website,
+                              bg='#e74c3c', fg='white', font=("Arial", 9, "bold"),
+                              padx=10, pady=2)
+        api_button.pack(anchor='w', padx=5, pady=5)
+        
+    def show_placeholder(self):
+        """Show placeholder when no weather data is available"""
+        # Clear existing widgets
+        for widget in self.weather_frame.winfo_children():
+            widget.destroy()
+            
+        placeholder = tk.Label(self.weather_frame, 
+                             text="Enter a city name or ZIP code above\nand click 'Search Weather' to get started!",
+                             font=("Arial", 14), bg='#34495e', fg='#bdc3c7',
+                             justify='center')
+        placeholder.pack(expand=True)
+        
+    def get_weather(self):
+        """Fetch weather data from API"""
+        city = self.city_entry.get().strip()
+        if not city:
+            messagebox.showwarning("Warning", "Please enter a city name or ZIP code!")
+            return
+            
+        # Show loading
+        self.show_loading()
+        
+        # Try to get real weather data first
+        weather_data = self.make_api_call(city)
+        
+        if weather_data:
+            self.display_weather(weather_data)
+        else:
+            # Fallback to mock data for demonstration
+            mock_data = self.get_mock_weather_data(city)
+            self.display_weather(mock_data)
+            
+    def get_mock_weather_data(self, city):
+        """Generate mock weather data for demonstration"""
+        import random
+        
+        conditions = ["Clear", "Cloudy", "Rainy", "Sunny", "Partly Cloudy"]
+        temperatures = list(range(15, 35))  # 15-35°C
+        
+        return {
+            "name": city,
+            "main": {
+                "temp": random.choice(temperatures),
+                "humidity": random.randint(40, 90),
+                "pressure": random.randint(1000, 1020)
+            },
+            "weather": [{
+                "main": random.choice(conditions),
+                "description": f"{random.choice(conditions).lower()} weather",
+                "icon": "01d"
+            }],
+            "wind": {
+                "speed": random.uniform(0, 20)
+            },
+            "sys": {
+                "country": "Demo"
+            }
+        }
+        
+    def show_loading(self):
+        """Show loading message"""
+        for widget in self.weather_frame.winfo_children():
+            widget.destroy()
+            
+        loading_label = tk.Label(self.weather_frame, 
+                               text="Loading weather data...\nPlease wait...",
+                               font=("Arial", 14), bg='#34495e', fg='#3498db',
+                               justify='center')
+        loading_label.pack(expand=True)
+        
+        # Force GUI update
+        self.root.update()
+        
+    def display_weather(self, data):
+        """Display weather information"""
+        # Clear existing widgets
+        for widget in self.weather_frame.winfo_children():
+            widget.destroy()
+            
+        # City and country
+        location_frame = tk.Frame(self.weather_frame, bg='#34495e')
+        location_frame.pack(fill='x', pady=10)
+        
+        city_label = tk.Label(location_frame, text=data["name"], 
+                            font=("Arial", 20, "bold"), bg='#34495e', fg='white')
+        city_label.pack()
+        
+        if "sys" in data and "country" in data["sys"]:
+            country_label = tk.Label(location_frame, text=data["sys"]["country"], 
+                                   font=("Arial", 12), bg='#34495e', fg='#bdc3c7')
+            country_label.pack()
+            
+        # Weather icon and condition
+        weather_frame = tk.Frame(self.weather_frame, bg='#34495e')
+        weather_frame.pack(fill='x', pady=20)
+        
+        if "weather" in data and len(data["weather"]) > 0:
+            weather = data["weather"][0]
+            
+            # Weather icon (using emoji as fallback)
+            icon_map = {
+                "Clear": "☀️", "Clouds": "☁️", "Rain": "🌧️", 
+                "Snow": "❄️", "Thunderstorm": "⛈️", "Drizzle": "��️",
+                "Mist": "��️", "Fog": "🌫️", "Haze": "🌫️"
+            }
+            
+            weather_icon = icon_map.get(weather["main"], "🌤️")
+            icon_label = tk.Label(weather_frame, text=weather_icon, 
+                                font=("Arial", 48), bg='#34495e', fg='white')
+            icon_label.pack()
+            
+            # Weather description
+            desc_label = tk.Label(weather_frame, text=weather["description"].title(), 
+                                font=("Arial", 16), bg='#34495e', fg='white')
+            desc_label.pack(pady=5)
+            
+        # Temperature
+        temp_frame = tk.Frame(self.weather_frame, bg='#34495e')
+        temp_frame.pack(fill='x', pady=20)
+        
+        if "main" in data and "temp" in data["main"]:
+            temp_celsius = data["main"]["temp"]
+            temp_label = tk.Label(temp_frame, text=f"{temp_celsius:.1f}°C", 
+                                font=("Arial", 36, "bold"), bg='#34495e', fg='#3498db')
+            temp_label.pack()
+            
+        # Weather details
+        details_frame = tk.Frame(self.weather_frame, bg='#34495e')
+        details_frame.pack(fill='x', pady=20)
+        
+        # Create a grid for details
+        details_frame.grid_columnconfigure(0, weight=1)
+        details_frame.grid_columnconfigure(1, weight=1)
+        
+        row = 0
+        
+        # Humidity
+        if "main" in data and "humidity" in data["main"]:
+            humidity_label = tk.Label(details_frame, text="Humidity:", 
+                                    font=("Arial", 12, "bold"), bg='#34495e', fg='white')
+            humidity_label.grid(row=row, column=0, sticky='w', padx=10, pady=5)
+            
+            humidity_value = tk.Label(details_frame, text=f"{data['main']['humidity']}%", 
+                                    font=("Arial", 12), bg='#34495e', fg='#bdc3c7')
+            humidity_value.grid(row=row, column=1, sticky='w', padx=10, pady=5)
+            row += 1
+            
+        # Pressure
+        if "main" in data and "pressure" in data["main"]:
+            pressure_label = tk.Label(details_frame, text="Pressure:", 
+                                    font=("Arial", 12, "bold"), bg='#34495e', fg='white')
+            pressure_label.grid(row=row, column=0, sticky='w', padx=10, pady=5)
+            
+            pressure_value = tk.Label(details_frame, text=f"{data['main']['pressure']} hPa", 
+                                    font=("Arial", 12), bg='#34495e', fg='#bdc3c7')
+            pressure_value.grid(row=row, column=1, sticky='w', padx=10, pady=5)
+            row += 1
+            
+        # Wind speed
+        if "wind" in data and "speed" in data["wind"]:
+            wind_label = tk.Label(details_frame, text="Wind Speed:", 
+                                font=("Arial", 12, "bold"), bg='#34495e', fg='white')
+            wind_label.grid(row=row, column=0, sticky='w', padx=10, pady=5)
+            
+            wind_value = tk.Label(details_frame, text=f"{data['wind']['speed']:.1f} m/s", 
+                                font=("Arial", 12), bg='#34495e', fg='#bdc3c7')
+            wind_value.grid(row=row, column=1, sticky='w', padx=10, pady=5)
+            row += 1
+            
+        # Last updated
+        update_frame = tk.Frame(self.weather_frame, bg='#34495e')
+        update_frame.pack(fill='x', pady=20)
+        
+        update_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        update_label = tk.Label(update_frame, text=f"Last updated: {update_time}", 
+                              font=("Arial", 10), bg='#34495e', fg='#95a5a6')
+        update_label.pack()
+        
+    def open_api_website(self):
+        """Open OpenWeatherMap website"""
+        webbrowser.open("https://openweathermap.org/api")
+        
+    def make_api_call(self, city):
+        """Make actual API call to OpenWeatherMap"""
+        if self.api_key == "YOUR_API_KEY_HERE":
+            return None  # Return None to use mock data
+            
+        try:
+            params = {
+                'q': city,
+                'appid': self.api_key,
+                'units': 'metric'
+            }
+            
+            response = requests.get(self.base_url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                messagebox.showerror("Error", f"City not found: {city}")
+                return None
+                
+        except requests.exceptions.RequestException as e:
+            messagebox.showerror("Error", f"Network error: {str(e)}")
+            return None
+        except Exception as e:
+            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+            return None
+
+def main():
+    root = tk.Tk()
+    app = WeatherApp(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
